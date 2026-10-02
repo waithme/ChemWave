@@ -1,0 +1,59 @@
+# Keep the repository limited to source code, input data, and the root README.
+# Project-level experiment notes are local-only documentation.
+**/README.md
+!/README.md
+**/*.md
+!/README.md
+**/.gitignore
+!/.gitignore
+**/*.json
+
+# Manuscripts, review materials, archives, generated artwork and PDFs
+/archive/
+/submission_review_package_2026-09-30/
+/chemwave_paper_draft/
+/chemwave_supplementary_draft/
+**/*.pdf
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.svg
+**/*.tex
+**/*.bib
+
+# Generated metrics, predictions, logs, and run directories
+/ablation_results/
+**/results/
+**/downloaded_results/
+**/interpretability_outputs/
+**/final_runs/
+**/matched_runs/
+**/target_balanced_runs/
+**/experiment3_runs/
+**/runs/
+**/*.log
+**/*.out
+
+# Trained model artifacts
+**/checkpoints/
+**/*.pt
+**/*.pth
+**/*.ckpt
+**/*.onnx
+
+# Aggregated evaluation summaries are results, even when stored beside inputs.
+**/data/whole_results.csv
+**/*MANIFEST*.json
+
+# Python caches, environments, lock files, and local secrets
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.venv/
+**/venv/
+**/*.py[cod]
+**/*.lock
+**/.DS_Store
+**/.env
+**/.env.*

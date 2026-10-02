@@ -1,0 +1,5 @@
+numpy
+pandas
+rdkit
+torch
+torch-geometric
