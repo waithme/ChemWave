@@ -1,5 +1,6 @@
-numpy
-pandas
-rdkit
-torch
-torch-geometric
+# Core package versions reported for the study; install the appropriate PyTorch wheel first.
+numpy==1.26.4
+pandas==2.3.3
+rdkit==2023.9.6
+torch==2.5.1
+torch-geometric==2.7.0
