@@ -87,6 +87,43 @@ python run_all.py --data-dir "$CHEMWAVE_DATA_DIR" \
 cd ..
 ```
 
+The remaining published controls can be launched from the repository root with the same input directory and five-seed protocol. Each sensitivity variant is a separate run; `runs/` and `final_runs/` contain generated outputs and are excluded from Git:
+
+```bash
+cd chemical_semantic_control
+for variant in element_shell random_role; do
+  python run_semantic_control.py --variant "$variant" \
+    --data-dir "$CHEMWAVE_DATA_DIR" --output-root runs --device cuda
+done
+
+cd ../sensitivity_radius
+for variant in radius_1 radius_3 radius_5; do
+  python run_sensitivity.py --variant "$variant" \
+    --data-dir "$CHEMWAVE_DATA_DIR" --output-root runs --device cuda
+done
+
+cd ../sensitivity_shell
+for variant in exact_shell cumulative_shell; do
+  python run_sensitivity.py --variant "$variant" \
+    --data-dir "$CHEMWAVE_DATA_DIR" --output-root runs --device cuda
+done
+
+cd ../sensitivity_normalization
+for variant in norm_none norm_mean norm_sqrt; do
+  python run_sensitivity.py --variant "$variant" \
+    --data-dir "$CHEMWAVE_DATA_DIR" --output-root runs --device cuda
+done
+
+cd ../target_balanced_experiment
+python run_final_model.py --data-dir "$CHEMWAVE_DATA_DIR" \
+  --output-dir final_runs --device cuda
+
+cd ../efficiency_experiment
+python run_efficiency.py --data-dir "$CHEMWAVE_DATA_DIR" \
+  --output-dir runs/efficiency --device cuda --seed 0
+cd ..
+```
+
 For the publication-scale intervention analysis, run the final model first and then use its adapted checkpoints. The script's lightweight defaults are 10 cliff molecules, 10 non-cliff molecules, and five random repeats; the reported protocol uses 25/25/10. The script writes these resolved settings to `interpretability_outputs/manifest.json`.
 
 ```bash
@@ -102,7 +139,7 @@ python run_interpretability.py \
 cd ..
 ```
 
-The architecture ablation, chemical-role control, radius/shell/normalization sensitivity, target-balanced, and efficiency directories each have their own launchers. Use `--help` for their variant choices and pass the same `CHEMWAVE_DATA_DIR`, seeds, and published training budget. Official test metrics are for reporting after validation-based model and checkpoint selection; they are not selection criteria.
+Use each launcher's `--help` for additional options. Official test metrics are for reporting after validation-based model and checkpoint selection; they are not selection criteria.
 
 ## Tests
 
