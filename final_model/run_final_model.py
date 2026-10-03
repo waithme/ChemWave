@@ -73,6 +73,8 @@ def main() -> None:
             str(results_dir / "all_results.csv"),
             "--finetune-epochs",
             str(args.finetune_epochs),
+            "--pretrain-epochs",
+            str(args.pretrain_epochs),
             "--expected-target-count",
             str(args.expected_target_count),
         ],

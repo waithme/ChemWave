@@ -14,6 +14,7 @@ from torch_geometric.loader import DataLoader
 
 from chemwave_multitask import TargetConditionedChemWave
 from chemwave_features import molecule_to_graph35
+from chemwave_provenance import MODEL_OPTIONS, VARIANT, protocol, sha256_file
 from chemwave_training import (
     ensure_target_adaptation,
     load_checkpoint,
@@ -24,9 +25,16 @@ from chemwave_training import (
 
 
 CSV_FIELDS = [
+    "variant",
     "development_data_sha256",
     "target",
     "seed",
+    "pretrain_protocol_sha256",
+    "adapted_protocol_sha256",
+    "pretrain_checkpoint_sha256",
+    "adapted_checkpoint_sha256",
+    "test_input_sha256",
+    "evaluation_source_sha256",
     "pretrain_checkpoint",
     "adapted_checkpoint",
     "pretrain_best_epoch",
@@ -49,20 +57,45 @@ def result_key(row: dict) -> tuple[str, str, str]:
     )
 
 
-def csv_contains(path: Path, key: tuple[str, str, str]) -> bool:
+ORIGIN_FIELDS = (
+    "variant", "pretrain_protocol_sha256", "adapted_protocol_sha256",
+    "pretrain_checkpoint_sha256", "adapted_checkpoint_sha256",
+    "test_input_sha256", "evaluation_source_sha256",
+)
+
+
+def _read_rows(path: Path) -> list[dict]:
+    if not path.exists() or path.stat().st_size == 0:
+        return []
+    with path.open(newline="") as result_file:
+        reader = csv.DictReader(result_file)
+        if reader.fieldnames != CSV_FIELDS:
+            raise RuntimeError(
+                f"Unexpected CSV schema in {path}: {reader.fieldnames}. "
+                "Preserve the historical table and choose a fresh results path."
+            )
+        return list(reader)
+
+
+def _matches_existing(existing: dict, row: dict) -> bool:
+    if any(str(existing[field]) != str(row[field]) for field in ORIGIN_FIELDS):
+        raise RuntimeError(
+            "Result already exists for this data/target/seed but its protocol, "
+            "checkpoint, test input, or evaluation code differs; refusing to "
+            "silently skip or mix results. Use a separate output directory."
+        )
+    return True
+
+
+def csv_contains(path: Path, row: dict) -> bool:
     lock_path = path.with_suffix(path.suffix + ".lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("w") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-        if not path.exists() or path.stat().st_size == 0:
-            return False
-        with path.open(newline="") as result_file:
-            reader = csv.DictReader(result_file)
-            if reader.fieldnames != CSV_FIELDS:
-                raise RuntimeError(
-                    f"Unexpected CSV schema in {path}: {reader.fieldnames}"
-                )
-            return any(result_key(row) == key for row in reader)
+        matches = [existing for existing in _read_rows(path) if result_key(existing) == result_key(row)]
+        if len(matches) > 1:
+            raise RuntimeError(f"Duplicate result key in {path}: {result_key(row)}")
+        return bool(matches and _matches_existing(matches[0], row))
 
 
 def append_csv_once(path: Path, row: dict) -> bool:
@@ -71,15 +104,12 @@ def append_csv_once(path: Path, row: dict) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("w") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-        if path.exists() and path.stat().st_size > 0:
-            with path.open(newline="") as result_file:
-                reader = csv.DictReader(result_file)
-                if reader.fieldnames != CSV_FIELDS:
-                    raise RuntimeError(
-                        f"Unexpected CSV schema in {path}: {reader.fieldnames}"
-                    )
-                if any(result_key(existing) == key for existing in reader):
-                    return False
+        matches = [existing for existing in _read_rows(path) if result_key(existing) == key]
+        if len(matches) > 1:
+            raise RuntimeError(f"Duplicate result key in {path}: {key}")
+        if matches:
+            _matches_existing(matches[0], row)
+            return False
         needs_header = not path.exists() or path.stat().st_size == 0
         with path.open("a", newline="") as result_file:
             writer = csv.DictWriter(result_file, fieldnames=CSV_FIELDS)
@@ -162,6 +192,7 @@ def main() -> None:
     )
     parser.add_argument("--expected-target-count", type=int, default=30)
     parser.add_argument("--hidden-dim", type=int, default=300)
+    parser.add_argument("--pretrain-epochs", type=int, default=100)
     parser.add_argument("--finetune-epochs", type=int, default=100)
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args()
@@ -181,6 +212,8 @@ def main() -> None:
         raise ValueError(f"Unknown targets: {unknown}")
     if len(set(targets)) != len(targets):
         raise ValueError("Duplicate targets are not allowed")
+    # Fail before any adaptation if a historical table is passed to the v2 runner.
+    _read_rows(args.results_csv)
 
     print(
         f"device={device} datasets={len(data['target_names'])} "
@@ -198,31 +231,56 @@ def main() -> None:
                 f"Missing {pretrain_path}. Run run_chemwave_pretrain.py first."
             )
         pretrain = load_checkpoint(pretrain_path, device)
+        pretrain_protocol = protocol(
+            stage="shared_pretrain", data=data, seed=seed,
+            hidden_dim=args.hidden_dim, max_epochs=args.pretrain_epochs,
+        )
         validate_checkpoint(
             pretrain,
             stage="shared_pretrain",
             seed=seed,
             data=data,
+            expected_protocol=pretrain_protocol,
         )
+        pretrain_hash = sha256_file(pretrain_path)
         for target_name in targets:
-            key = (
-                data["development_data_sha256"],
-                target_name,
-                str(seed),
-            )
-            if csv_contains(args.results_csv, key):
-                skipped += 1
-                print(f"skipping completed result: {target_name} seed={seed}", flush=True)
-                continue
-
             target_data = select_target_data(data, target_name)
             args.target_name = target_name
+            expected_adapted_path = (
+                args.adapted_dir / target_name / f"chemwave_adapted_seed{seed}.pt"
+            )
+            if not expected_adapted_path.exists():
+                existing = [
+                    row for row in _read_rows(args.results_csv)
+                    if result_key(row) == (data["development_data_sha256"], target_name, str(seed))
+                ]
+                if existing:
+                    raise RuntimeError(
+                        f"Result exists but its adapted checkpoint is missing: {expected_adapted_path}"
+                    )
             adapted, adaptation_source, adapted_path = ensure_target_adaptation(
                 pretrain, target_data, seed, args, device
             )
+            origin = {
+                "variant": VARIANT,
+                "development_data_sha256": data["development_data_sha256"],
+                "target": target_name,
+                "seed": seed,
+                "pretrain_protocol_sha256": pretrain["protocol_sha256"],
+                "adapted_protocol_sha256": adapted["protocol_sha256"],
+                "pretrain_checkpoint_sha256": pretrain_hash,
+                "adapted_checkpoint_sha256": sha256_file(adapted_path),
+                "test_input_sha256": sha256_file(args.data_dir / f"{target_name}.csv"),
+                "evaluation_source_sha256": sha256_file(Path(__file__)),
+            }
+            if csv_contains(args.results_csv, origin):
+                skipped += 1
+                print(f"skipping provenance-matched result: {target_name} seed={seed}", flush=True)
+                continue
             model = TargetConditionedChemWave(
                 num_targets=len(data["target_names"]),
                 hidden_dim=args.hidden_dim,
+                **MODEL_OPTIONS,
             ).to(device)
             model.load_state_dict(adapted["model_state"])
             test_graphs = load_test_graphs(
@@ -230,9 +288,7 @@ def main() -> None:
             )
             metrics = test_metrics(model, test_graphs, device)
             row = {
-                "development_data_sha256": data["development_data_sha256"],
-                "target": target_name,
-                "seed": seed,
+                **origin,
                 "pretrain_checkpoint": str(pretrain_path),
                 "adapted_checkpoint": str(adapted_path),
                 "pretrain_best_epoch": int(pretrain["best_epoch"]),

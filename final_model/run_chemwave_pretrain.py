@@ -11,6 +11,7 @@ from chemwave_training import (
     ensure_shared_pretrain,
     prepare_development_data,
 )
+from chemwave_provenance import sha256_file
 
 
 def main() -> None:
@@ -46,6 +47,8 @@ def main() -> None:
             "seed": seed,
             "source": source,
             "checkpoint": str(path),
+            "checkpoint_sha256": sha256_file(path),
+            "protocol_sha256": checkpoint["protocol_sha256"],
             "best_epoch": int(checkpoint["best_epoch"]),
             "validation_rmse": float(checkpoint["validation_rmse"]),
         }

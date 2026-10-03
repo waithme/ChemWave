@@ -19,6 +19,15 @@ from torch_geometric.loader import DataLoader
 
 from chemwave_multitask import TargetConditionedChemWave
 from chemwave_features import molecule_to_graph35
+from chemwave_provenance import (
+    MODEL_OPTIONS,
+    TRAIN_OPTIONS,
+    VARIANT,
+    canonical_sha256,
+    protocol,
+    sha256_file,
+    validate_protocol,
+)
 
 
 DATA_DIR = Path("data/experiment2")
@@ -277,7 +286,7 @@ def fit_stage(
     optimizer = torch.optim.AdamW(
         [parameter for parameter in model.parameters() if parameter.requires_grad],
         lr=lr,
-        weight_decay=1e-5,
+        weight_decay=TRAIN_OPTIONS["weight_decay"],
     )
     best_state, best_mse, best_epoch, stale = None, math.inf, 0, 0
     for epoch in range(1, max_epochs + 1):
@@ -294,7 +303,7 @@ def fit_stage(
             optimizer.zero_grad(set_to_none=True)
             loss = F.mse_loss(model(batch), batch.y.view(-1))
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), TRAIN_OPTIONS["gradient_clip_norm"])
             optimizer.step()
             if protected_rows:
                 # AdamW applies decoupled weight decay to the whole dense
@@ -305,7 +314,7 @@ def fit_stage(
                     for parameter, initial_value in protected_rows:
                         parameter[inactive_mask] = initial_value[inactive_mask]
         mse = validation_mse(model, val_loader, device)
-        improved = mse < best_mse - 1e-8
+        improved = mse < best_mse - TRAIN_OPTIONS["minimum_mse_improvement"]
         if improved:
             best_state, best_mse, best_epoch, stale = copy.deepcopy(model.state_dict()), mse, epoch, 0
         else:
@@ -326,7 +335,7 @@ def fit_stage(
                 ),
                 flush=True,
             )
-        if stale >= 15:
+        if stale >= TRAIN_OPTIONS["early_stop_patience"]:
             break
     model.load_state_dict(best_state)
     if protected_rows:
@@ -354,12 +363,14 @@ def validate_checkpoint(
     seed: int,
     data: dict,
     target_name: str | None = None,
+    expected_protocol: dict,
 ) -> None:
     expected = {
         "stage": stage,
         "development_data_sha256": data["development_data_sha256"],
         "target_names": data["target_names"],
         "seed": seed,
+        "variant": VARIANT,
     }
     if target_name is not None:
         expected["target_name"] = target_name
@@ -375,6 +386,7 @@ def validate_checkpoint(
         )
     if "model_state" not in checkpoint:
         raise RuntimeError("Checkpoint has no model_state")
+    validate_protocol(checkpoint, expected_protocol)
 
 
 def load_checkpoint(path: Path, device: torch.device) -> dict:
@@ -383,6 +395,10 @@ def load_checkpoint(path: Path, device: torch.device) -> dict:
 
 def ensure_shared_pretrain(data, seed, args, device) -> tuple[dict, str, Path]:
     path = args.pretrain_dir / f"chemwave_shared_pretrain_seed{seed}.pt"
+    expected_protocol = protocol(
+        stage="shared_pretrain", data=data, seed=seed,
+        hidden_dim=args.hidden_dim, max_epochs=args.pretrain_epochs,
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.with_suffix(path.suffix + ".lock")
     print(f"checking shared pretrain checkpoint: {path}", flush=True)
@@ -395,6 +411,7 @@ def ensure_shared_pretrain(data, seed, args, device) -> tuple[dict, str, Path]:
                 stage="shared_pretrain",
                 seed=seed,
                 data=data,
+                expected_protocol=expected_protocol,
             )
             print(f"reusing shared pretrain checkpoint: {path}", flush=True)
             return checkpoint, "reused", path
@@ -404,22 +421,26 @@ def ensure_shared_pretrain(data, seed, args, device) -> tuple[dict, str, Path]:
         model = TargetConditionedChemWave(
             num_targets=len(data["target_names"]),
             hidden_dim=args.hidden_dim,
+            **MODEL_OPTIONS,
         ).to(device)
         initialize_output_bias(model, data["pretrain"], len(data["target_names"]))
         best_epoch, validation_rmse = fit_stage(
             model,
-            make_loader(data["pretrain"], 128, True, seed),
-            make_loader(data["pretrain_val"], 128, False, seed),
-            1e-3,
+            make_loader(data["pretrain"], TRAIN_OPTIONS["batch_size"], True, seed),
+            make_loader(data["pretrain_val"], TRAIN_OPTIONS["batch_size"], False, seed),
+            expected_protocol["training"]["learning_rate"],
             args.pretrain_epochs,
             device,
             stage_name=f"shared_pretrain_seed_{seed}",
         )
         checkpoint = {
             "stage": "shared_pretrain",
+            "variant": VARIANT,
             "development_data_sha256": data["development_data_sha256"],
             "target_names": data["target_names"],
             "seed": seed,
+            "protocol": expected_protocol,
+            "protocol_sha256": canonical_sha256(expected_protocol),
             "best_epoch": best_epoch,
             "validation_rmse": validation_rmse,
             "model_state": model.state_dict(),
@@ -431,6 +452,23 @@ def ensure_shared_pretrain(data, seed, args, device) -> tuple[dict, str, Path]:
 def ensure_target_adaptation(
     pretrain_checkpoint, data, seed, args, device
 ) -> tuple[dict, str, Path]:
+    pretrain_path = args.pretrain_dir / f"chemwave_shared_pretrain_seed{seed}.pt"
+    pretrain_protocol = protocol(
+        stage="shared_pretrain", data=data, seed=seed,
+        hidden_dim=args.hidden_dim, max_epochs=args.pretrain_epochs,
+    )
+    validate_checkpoint(
+        pretrain_checkpoint, stage="shared_pretrain", seed=seed,
+        data=data, expected_protocol=pretrain_protocol,
+    )
+    pretrain_hash = sha256_file(pretrain_path)
+    expected_protocol = protocol(
+        stage="adapted", data=data, seed=seed,
+        hidden_dim=args.hidden_dim, max_epochs=args.finetune_epochs,
+        target_name=args.target_name,
+        pretrain_checkpoint_sha256=pretrain_hash,
+        pretrain_protocol_sha256=pretrain_checkpoint["protocol_sha256"],
+    )
     path = args.adapted_dir / args.target_name / f"chemwave_adapted_seed{seed}.pt"
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.with_suffix(path.suffix + ".lock")
@@ -445,6 +483,7 @@ def ensure_target_adaptation(
                 seed=seed,
                 data=data,
                 target_name=args.target_name,
+                expected_protocol=expected_protocol,
             )
             print(f"reusing target adaptation checkpoint: {path}", flush=True)
             return checkpoint, "reused", path
@@ -454,6 +493,7 @@ def ensure_target_adaptation(
         model = TargetConditionedChemWave(
             num_targets=len(data["target_names"]),
             hidden_dim=args.hidden_dim,
+            **MODEL_OPTIONS,
         ).to(device)
         model.load_state_dict(pretrain_checkpoint["model_state"])
         for parameter in model.parameters():
@@ -467,9 +507,9 @@ def ensure_target_adaptation(
         model.output_bias.requires_grad = True
         best_epoch, validation_rmse = fit_stage(
             model,
-            make_loader(data["target_train"], 128, True, seed),
-            make_loader(data["target_val"], 128, False, seed),
-            1e-4,
+            make_loader(data["target_train"], TRAIN_OPTIONS["batch_size"], True, seed),
+            make_loader(data["target_val"], TRAIN_OPTIONS["batch_size"], False, seed),
+            expected_protocol["training"]["learning_rate"],
             args.finetune_epochs,
             device,
             frozen_backbone=True,
@@ -478,11 +518,15 @@ def ensure_target_adaptation(
         )
         checkpoint = {
             "stage": "adapted",
+            "variant": VARIANT,
             "development_data_sha256": data["development_data_sha256"],
             "target_names": data["target_names"],
             "target_name": args.target_name,
             "seed": seed,
-            "shared_pretrain_checkpoint": str(args.pretrain_dir / f"chemwave_shared_pretrain_seed{seed}.pt"),
+            "shared_pretrain_checkpoint": str(pretrain_path),
+            "shared_pretrain_checkpoint_sha256": pretrain_hash,
+            "protocol": expected_protocol,
+            "protocol_sha256": canonical_sha256(expected_protocol),
             "best_epoch": best_epoch,
             "validation_rmse": validation_rmse,
             "model_state": model.state_dict(),

@@ -13,6 +13,8 @@ from chemwave_explain import (
 )
 from chemwave_features import molecule_to_graph35
 from chemwave_multitask import TargetConditionedChemWave
+from run_interpretability import load_model
+from chemwave_provenance import VARIANT, canonical_sha256, protocol, sha256_file
 from interpretability_visuals import draw_molecule_explanation
 
 
@@ -67,6 +69,46 @@ class InterpretabilityTests(unittest.TestCase):
             )
             self.assertTrue(path.exists())
             self.assertGreater(path.stat().st_size, 1000)
+
+    def test_explanation_checkpoint_requires_matching_fingerprint(self):
+        data = {"development_data_sha256": "dev-hash", "target_names": ["A", "B"]}
+        built = protocol(
+            stage="adapted", data=data, seed=0, hidden_dim=16, max_epochs=100,
+            target_name="A", pretrain_checkpoint_sha256="a" * 64,
+            pretrain_protocol_sha256="b" * 64,
+        )
+        payload = {
+            "stage": "adapted", "variant": VARIANT, "target_name": "A",
+            "target_names": ["A", "B"], "seed": 0,
+            "development_data_sha256": "dev-hash",
+            "protocol": built, "protocol_sha256": canonical_sha256(built),
+            "model_state": self.model.state_dict(),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "checkpoint.pt"
+            torch.save(payload, path)
+            load_model(
+                path, target="A", seed=0, device=torch.device("cpu"),
+                expected_fingerprint="dev-hash", expected_target_names=["A", "B"],
+            )
+            with self.assertRaisesRegex(RuntimeError, "metadata mismatch"):
+                load_model(
+                    path, target="A", seed=0, device=torch.device("cpu"),
+                    expected_fingerprint="other", expected_target_names=["A", "B"],
+                )
+            payload.pop("protocol")
+            payload.pop("protocol_sha256")
+            torch.save(payload, path)
+            with self.assertRaisesRegex(RuntimeError, "Legacy checkpoint requires"):
+                load_model(
+                    path, target="A", seed=0, device=torch.device("cpu"),
+                    expected_fingerprint="dev-hash", expected_target_names=["A", "B"],
+                )
+            load_model(
+                path, target="A", seed=0, device=torch.device("cpu"),
+                expected_fingerprint="dev-hash", expected_target_names=["A", "B"],
+                legacy_sha256=sha256_file(path),
+            )
 
 
 if __name__ == "__main__":

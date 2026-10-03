@@ -60,6 +60,8 @@ cd ..
 
 This writes `final_model/final_runs/results/pretrain.json` and `final_model/final_runs/results/all_results.csv`. The expected final table has 150 unique target–seed rows (30 targets × five seeds). Its development-data fingerprint is `b9deaeb5c67b1b7aee83f0e5c5a48bd85b9d74e1865e13d26ca8ef6224ee7184`.
 
+New runs embed an effective architecture/training protocol fingerprint in each checkpoint. Adapted checkpoints also bind the exact shared-pretraining checkpoint SHA-256. Result rows record both checkpoint hashes, both protocol fingerprints, the test-input hash, and the evaluation-script hash. A checkpoint/configuration mismatch or a same-target result with different provenance stops the run; historical CSVs/checkpoints are not silently upgraded or overwritten. Use a fresh output directory for a new protocol. The historical fingerprint above is a property of the archived results, not a guarantee that a different local environment or input snapshot will recompute it.
+
 From the repository root, the other main experiment launchers can be run as follows after setting `CHEMWAVE_DATA_DIR`:
 
 ```bash
@@ -140,6 +142,8 @@ cd ..
 ```
 
 Use each launcher's `--help` for additional options. Official test metrics are for reporting after validation-based model and checkpoint selection; they are not selection criteria.
+
+Interpretability runs verify the development-data fingerprint and every requested checkpoint before generating explanations, then record checkpoint and input hashes in their manifest. Historical checkpoints without embedded protocol metadata require a separate read-only audit manifest via `--legacy-audit-manifest`; that manifest documents unresolved provenance limits rather than treating old weights as newly certified. Use `--verify-only` to check sources without producing explanations.
 
 ## Tests
 

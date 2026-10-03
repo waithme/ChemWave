@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import sys
 from itertools import combinations
 from pathlib import Path
 
@@ -27,6 +28,14 @@ from interpretability_visuals import (
     plot_target_gate,
 )
 
+# The provenance implementation is shared with the final-model runner while
+# this analysis keeps its original local model/feature modules.
+sys.path.append(str(Path(__file__).resolve().parents[1] / "final_model"))
+from chemwave_provenance import (  # noqa: E402
+    MODEL_OPTIONS, VARIANT, canonical_sha256, sha256_file,
+)
+from chemwave_training import prepare_development_data  # noqa: E402
+
 
 def load_model(
     checkpoint_path: Path,
@@ -34,23 +43,44 @@ def load_model(
     target: str,
     seed: int,
     device: torch.device,
+    expected_fingerprint: str,
+    expected_target_names: list[str],
+    legacy_sha256: str | None = None,
 ) -> tuple[TargetConditionedChemWave, dict]:
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
-    expected = {"stage": "adapted", "target_name": target, "seed": seed}
+    expected = {
+        "stage": "adapted", "target_name": target, "seed": seed,
+        "variant": VARIANT,
+        "development_data_sha256": expected_fingerprint,
+        "target_names": expected_target_names,
+    }
     mismatches = {
         key: {"expected": value, "found": checkpoint.get(key)}
         for key, value in expected.items()
         if checkpoint.get(key) != value
     }
-    if checkpoint.get("variant") not in (None, "a5_plain_bond_gradient"):
-        mismatches["variant"] = {
-            "expected": "a5_plain_bond_gradient",
-            "found": checkpoint.get("variant"),
-        }
     if mismatches:
         raise RuntimeError(
             f"Checkpoint metadata mismatch for {checkpoint_path}:\n"
             + json.dumps(mismatches, indent=2)
+        )
+    if "protocol" in checkpoint or "protocol_sha256" in checkpoint:
+        stored = checkpoint.get("protocol")
+        if not isinstance(stored, dict) or checkpoint.get("protocol_sha256") != canonical_sha256(stored):
+            raise RuntimeError(f"Corrupt checkpoint protocol: {checkpoint_path}")
+        if stored.get("stage") != "adapted" or stored.get("variant") != VARIANT:
+            raise RuntimeError(f"Wrong checkpoint protocol: {checkpoint_path}")
+        state = checkpoint["model_state"]
+        num_targets, hidden_dim = state["output_weight"].shape
+        expected_model = {**MODEL_OPTIONS, "hidden_dim": hidden_dim, "num_targets": num_targets}
+        if stored.get("model") != expected_model:
+            raise RuntimeError(f"Checkpoint architecture differs from analysis model: {checkpoint_path}")
+        for name in ("chemwave_features.py", "chemwave_multitask.py"):
+            if stored.get("source_sha256", {}).get(name) != sha256_file(Path(__file__).parent / name):
+                raise RuntimeError(f"Analysis source differs from checkpoint protocol: {name}")
+    elif legacy_sha256 is None or sha256_file(checkpoint_path) != legacy_sha256:
+        raise RuntimeError(
+            f"Legacy checkpoint requires a matching read-only audit manifest: {checkpoint_path}"
         )
     state = checkpoint["model_state"]
     num_targets, hidden_dim = state["output_weight"].shape
@@ -175,6 +205,11 @@ def main() -> None:
     parser.add_argument("--skip-cases", action="store_true")
     parser.add_argument("--skip-statistical-figures", action="store_true")
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--verify-only", action="store_true", help="Check all requested checkpoint sources without generating explanations.")
+    parser.add_argument(
+        "--legacy-audit-manifest", type=Path,
+        help="Required for historical checkpoints without embedded protocol fingerprints.",
+    )
     args = parser.parse_args()
 
     if len(set(args.seeds)) != len(args.seeds):
@@ -193,12 +228,76 @@ def main() -> None:
     unknown = sorted(set(targets) - set(checkpoint_targets))
     if unknown:
         raise ValueError(f"Targets without checkpoint directories: {unknown}")
+    if len(set(targets)) != len(targets):
+        raise ValueError("Duplicate targets are not allowed")
+    data = prepare_development_data(data_dir=args.data_dir)
+    if sorted(checkpoint_targets) != data["target_names"]:
+        raise RuntimeError("Checkpoint target directories differ from development data")
+    audit = None
+    audit_records = {}
+    if args.legacy_audit_manifest is not None:
+        audit = json.loads(args.legacy_audit_manifest.read_text())
+        if audit.get("status") not in (
+            "legacy_metadata_consistent_config_unverified",
+            "legacy_metadata_consistent_local_development_fingerprint_mismatch",
+        ):
+            raise RuntimeError("Unexpected legacy-audit status")
+        if audit.get("local_recomputed_development_data_sha256") != data["development_data_sha256"]:
+            raise RuntimeError("Local development data changed since the legacy audit")
+        if audit.get("target_names") != data["target_names"]:
+            raise RuntimeError("Legacy audit target order mismatch")
+        results_path = Path(audit["results_csv"])
+        if sha256_file(results_path) != audit["results_csv_sha256"]:
+            raise RuntimeError("Historical results table changed since the audit")
+        for target, expected_hash in audit["input_csv_sha256"].items():
+            if sha256_file(args.data_dir / f"{target}.csv") != expected_hash:
+                raise RuntimeError(f"Input CSV changed since the audit: {target}")
+        audit_records = {
+            (item["target"], int(item["seed"])): item for item in audit["results"]
+        }
+        if len(audit_records) != len(audit["results"]):
+            raise RuntimeError("Duplicate legacy-audit checkpoint identity")
+    checkpoint_sources = []
+    for target in targets:
+        for seed in args.seeds:
+            checkpoint_path = args.checkpoint_dir / target / f"chemwave_adapted_seed{seed}.pt"
+            audit_record = audit_records.get((target, seed))
+            if audit is not None and audit_record is None:
+                raise RuntimeError(f"Checkpoint missing from legacy audit: {target} seed={seed}")
+            _, checkpoint = load_model(
+                checkpoint_path, target=target, seed=seed, device=device,
+                expected_fingerprint=(
+                    audit["development_data_sha256"] if audit is not None
+                    else data["development_data_sha256"]
+                ),
+                expected_target_names=data["target_names"],
+                legacy_sha256=(
+                    audit_record["adapted_checkpoint_sha256"] if audit_record else None
+                ),
+            )
+            checkpoint_sources.append({
+                "target": target, "seed": seed,
+                "path": str(checkpoint_path.resolve()),
+                "sha256": sha256_file(checkpoint_path),
+                "protocol_sha256": checkpoint.get("protocol_sha256"),
+            })
+    if args.verify_only:
+        print(json.dumps({
+            "status": audit["status"] if audit is not None else "embedded_protocol_verified",
+            "development_data_sha256": (
+                audit["development_data_sha256"] if audit is not None
+                else data["development_data_sha256"]
+            ),
+            "checkpoint_count": len(checkpoint_sources),
+        }, indent=2))
+        return
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     molecule_rows, atom_rows, bond_rows, gate_rows, faith_rows = [], [], [], [], []
     explanation_store: dict[tuple[str, int], list[dict]] = {}
     row_store: dict[tuple[str, int], dict] = {}
     common_target_names = None
+    source_by_key = {(item["target"], item["seed"]): item for item in checkpoint_sources}
 
     for target in targets:
         csv_path = args.data_dir / f"{target}.csv"
@@ -224,9 +323,24 @@ def main() -> None:
             )
             if not checkpoint_path.exists():
                 raise FileNotFoundError(checkpoint_path)
+            if sha256_file(checkpoint_path) != source_by_key[(target, seed)]["sha256"]:
+                raise RuntimeError(f"Checkpoint changed after provenance preflight: {checkpoint_path}")
+            audit_record = audit_records.get((target, seed))
+            if audit is not None and audit_record is None:
+                raise RuntimeError(f"Checkpoint missing from legacy audit: {target} seed={seed}")
             model, checkpoint = load_model(
-                checkpoint_path, target=target, seed=seed, device=device
+                checkpoint_path, target=target, seed=seed, device=device,
+                expected_fingerprint=(
+                    audit["development_data_sha256"] if audit is not None
+                    else data["development_data_sha256"]
+                ),
+                expected_target_names=data["target_names"],
+                legacy_sha256=(
+                    audit_record["adapted_checkpoint_sha256"] if audit_record else None
+                ),
             )
+            if audit_record is not None and sha256_file(checkpoint_path) != audit_record["adapted_checkpoint_sha256"]:
+                raise RuntimeError(f"Checkpoint differs from legacy audit: {checkpoint_path}")
             target_names = checkpoint["target_names"]
             if common_target_names is None:
                 common_target_names = target_names
@@ -501,6 +615,26 @@ def main() -> None:
             plot_stability(stability_frame, figures_dir / "seed_stability.png")
 
     manifest = {
+        "provenance_status": (
+            audit["status"] if audit is not None
+            else "embedded_protocol_verified"
+        ),
+        "development_data_sha256": (
+            audit["development_data_sha256"] if audit is not None
+            else data["development_data_sha256"]
+        ),
+        "local_recomputed_development_data_sha256": data["development_data_sha256"],
+        "input_csv_sha256": {
+            target: sha256_file(args.data_dir / f"{target}.csv")
+            for target in data["target_names"]
+        },
+        "legacy_audit_manifest": (
+            str(args.legacy_audit_manifest.resolve()) if audit is not None else None
+        ),
+        "legacy_audit_manifest_sha256": (
+            sha256_file(args.legacy_audit_manifest) if audit is not None else None
+        ),
+        "checkpoints": checkpoint_sources,
         "data_dir": str(args.data_dir.resolve()),
         "checkpoint_dir": str(args.checkpoint_dir.resolve()),
         "targets": targets,
