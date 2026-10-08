@@ -30,7 +30,7 @@ VARIANT_CONFIGS = {
         "use_bond_transport": False,
         "target_bond": True,
     },
-    "a3_full": {
+    "a3_affine_transport": {
         "use_relative": True,
         "target_relative": True,
         "use_bond_gradient": True,
@@ -44,7 +44,7 @@ VARIANT_CONFIGS = {
         "use_bond_transport": False,
         "target_bond": True,
     },
-    "a5_plain_bond_gradient": {
+    "a5_full": {
         "use_relative": True,
         "target_relative": True,
         "use_bond_gradient": True,
@@ -60,14 +60,26 @@ VARIANT_CONFIGS = {
     },
 }
 VARIANT_NAMES = tuple(VARIANT_CONFIGS)
+# Preserve archived checkpoint/result identifiers without calling the affine
+# transport comparator the final Full model.
+VARIANT_ALIASES = {
+    "a3_full": "a3_affine_transport",
+    "a5_plain_bond_gradient": "a5_full",
+}
+VARIANT_CHOICES = VARIANT_NAMES + tuple(VARIANT_ALIASES)
+
+
+def canonical_variant_name(variant: str) -> str:
+    name = VARIANT_ALIASES.get(variant, variant)
+    if name not in VARIANT_CONFIGS:
+        raise ValueError(
+            f"Unknown ablation variant {variant!r}; choose from {VARIANT_CHOICES}"
+        )
+    return name
 
 
 def get_variant_config(variant: str) -> dict[str, bool]:
-    if variant not in VARIANT_CONFIGS:
-        raise ValueError(
-            f"Unknown ablation variant {variant!r}; choose from {VARIANT_NAMES}"
-        )
-    return dict(VARIANT_CONFIGS[variant])
+    return dict(VARIANT_CONFIGS[canonical_variant_name(variant)])
 
 
 class TargetConditionedWaveletBlock(nn.Module):
@@ -197,11 +209,11 @@ class TargetConditionedChemWave(nn.Module):
         hidden_dim: int = 128,
         num_layers: int = 3,
         dropout: float = 0.1,
-        variant: str = "a3_full",
+        variant: str = "a5_full",
     ) -> None:
         super().__init__()
         self.num_targets = num_targets
-        self.variant = variant
+        self.variant = canonical_variant_name(variant)
         self.config = get_variant_config(variant)
         self.atom_projection = nn.Linear(atom_dim, hidden_dim)
         self.blocks = nn.ModuleList(

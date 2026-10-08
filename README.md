@@ -62,12 +62,29 @@ This writes `final_model/final_runs/results/pretrain.json` and `final_model/fina
 
 New runs embed an effective architecture/training protocol fingerprint in each checkpoint. Adapted checkpoints also bind the exact shared-pretraining checkpoint SHA-256. Result rows record both checkpoint hashes, both protocol fingerprints, the test-input hash, and the evaluation-script hash. A checkpoint/configuration mismatch or a same-target result with different provenance stops the run; historical CSVs/checkpoints are not silently upgraded or overwritten. Use a fresh output directory for a new protocol. The historical fingerprint above is a property of the archived results, not a guarantee that a different local environment or input snapshot will recompute it.
 
+In the ablation code, final Full is `a5_full` (the constructor default), and
+the affine-transport comparator is `a3_affine_transport`. Historical
+`a5_plain_bond_gradient` and `a3_full` remain compatibility aliases for these
+respective variants. The standalone final-model provenance identifier stays
+`a5_plain_bond_gradient`; existing checkpoint and result identities are not
+rewritten. The seven canonical variants are:
+
+| Code identifier | Model / change |
+|---|---|
+| `a0_v1` | Base aggregation/contrast model; no relative field or bond-difference response |
+| `a1_relative` | Assay-gated relative field only |
+| `a2_bond` | Assay-conditioned bond-difference response only |
+| `a3_affine_transport` | Combined fields with affine neighbor transport; comparator, not final Full |
+| `a4_no_target_relative` | Full with a shared, ungated relative field |
+| `a5_full` | Final Full ChemWave; direct center-minus-neighbor response, no affine transport |
+| `a6_no_target_bond` | Full with a shared bond response |
+
 From the repository root, the other main experiment launchers can be run as follows after setting `CHEMWAVE_DATA_DIR`:
 
 ```bash
 # One architecture ablation; repeat with each variant listed by --help.
 cd ablation_experiment
-python run_ablation.py --variant a5_plain_bond_gradient \
+python run_ablation.py --variant a5_full \
   --data-dir "$CHEMWAVE_DATA_DIR" --output-root runs --device cuda
 
 # From-scratch, joint-only, and joint-plus-adaptation protocols.

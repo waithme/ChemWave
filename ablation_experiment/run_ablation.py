@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from chemwave_multitask import VARIANT_NAMES
+from chemwave_multitask import VARIANT_CHOICES
 
 
 DEFAULT_SEEDS = (0, 1, 2, 3, 4)
@@ -23,7 +23,8 @@ def main() -> None:
             "then five-seed adaptation and testing on all 30 datasets."
         )
     )
-    parser.add_argument("--variant", choices=VARIANT_NAMES, required=True)
+    parser.add_argument("--variant", choices=VARIANT_CHOICES, required=True,
+                        help="Final Full: a5_full; affine comparator: a3_affine_transport. Legacy aliases remain accepted.")
     parser.add_argument("--data-dir", type=Path, default=Path("data/experiment2"))
     parser.add_argument(
         "--output-root", type=Path, default=Path("final_based_ablation_runs")

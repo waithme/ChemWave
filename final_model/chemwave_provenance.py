@@ -14,6 +14,8 @@ import torch
 import torch_geometric
 
 
+# Historical protocol identity of final Full (canonical ablation name:
+# a5_full). Keep this value stable for checkpoint/result provenance validation.
 VARIANT = "a5_plain_bond_gradient"
 PROTOCOL_VERSION = 2
 MODEL_OPTIONS = {

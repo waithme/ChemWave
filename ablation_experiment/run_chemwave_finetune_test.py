@@ -12,7 +12,9 @@ import pandas as pd
 import torch
 from torch_geometric.loader import DataLoader
 
-from chemwave_multitask import VARIANT_NAMES, TargetConditionedChemWave
+from chemwave_multitask import (
+    VARIANT_CHOICES, TargetConditionedChemWave, canonical_variant_name,
+)
 from chemwave_features import molecule_to_graph35
 from chemwave_training import (
     ensure_target_adaptation,
@@ -44,7 +46,7 @@ CSV_FIELDS = [
 
 def result_key(row: dict) -> tuple[str, str, str, str]:
     return (
-        str(row["variant"]),
+        canonical_variant_name(str(row["variant"])),
         str(row["development_data_sha256"]),
         str(row["target"]),
         str(row["seed"]),
@@ -152,7 +154,8 @@ def main() -> None:
         )
     )
     parser.add_argument("--data-dir", type=Path, required=True)
-    parser.add_argument("--variant", choices=VARIANT_NAMES, required=True)
+    parser.add_argument("--variant", choices=VARIANT_CHOICES, required=True,
+                        help="Final Full: a5_full; affine comparator: a3_affine_transport. Legacy aliases remain accepted.")
     parser.add_argument("--pretrain-dir", type=Path, required=True)
     parser.add_argument("--adapted-dir", type=Path, required=True)
     parser.add_argument("--results-csv", type=Path, required=True)
@@ -211,7 +214,7 @@ def main() -> None:
         )
         for target_name in targets:
             key = (
-                args.variant,
+                canonical_variant_name(args.variant),
                 data["development_data_sha256"],
                 target_name,
                 str(seed),

@@ -17,7 +17,7 @@ from rdkit import Chem
 from torch.nn import functional as F
 from torch_geometric.loader import DataLoader
 
-from chemwave_multitask import TargetConditionedChemWave
+from chemwave_multitask import TargetConditionedChemWave, canonical_variant_name
 from chemwave_features import molecule_to_graph35
 
 
@@ -361,14 +361,19 @@ def validate_checkpoint(
         "development_data_sha256": data["development_data_sha256"],
         "target_names": data["target_names"],
         "seed": seed,
-        "variant": variant,
+        "variant": canonical_variant_name(variant),
     }
     if target_name is not None:
         expected["target_name"] = target_name
+    found = {key: checkpoint.get(key) for key in expected}
+    try:
+        found["variant"] = canonical_variant_name(found["variant"])
+    except (ValueError, TypeError):
+        pass  # Missing/unknown identifiers still fail the metadata comparison.
     mismatches = {
         key: {"expected": value, "found": checkpoint.get(key)}
         for key, value in expected.items()
-        if checkpoint.get(key) != value
+        if found[key] != value
     }
     if mismatches:
         raise RuntimeError(

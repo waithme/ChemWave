@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from chemwave_multitask import VARIANT_NAMES
+from chemwave_multitask import VARIANT_CHOICES
 from chemwave_training import (
     ensure_shared_pretrain,
     prepare_development_data,
@@ -19,7 +19,8 @@ def main() -> None:
         description="Pretrain one shared 30-target ChemWave model per seed."
     )
     parser.add_argument("--data-dir", type=Path, required=True)
-    parser.add_argument("--variant", choices=VARIANT_NAMES, required=True)
+    parser.add_argument("--variant", choices=VARIANT_CHOICES, required=True,
+                        help="Final Full: a5_full; affine comparator: a3_affine_transport. Legacy aliases remain accepted.")
     parser.add_argument("--pretrain-dir", type=Path, required=True)
     parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2, 3, 4])
     parser.add_argument("--hidden-dim", type=int, default=300)
