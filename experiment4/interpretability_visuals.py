@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from PIL import Image, ImageDraw, ImageFont
 from rdkit import Chem
 from rdkit.Chem import rdDepictor
 from rdkit.Chem.Draw import rdMolDraw2D
@@ -41,6 +43,8 @@ def draw_molecule_explanation(
     legend: str,
     width: int = 900,
     height: int = 600,
+    max_atom_annotations: int = 3,
+    show_atom_indices: bool = False,
 ) -> None:
     """Draw relative-position atom and bond-difference intervention effects."""
     mol = Chem.MolFromSmiles(smiles)
@@ -74,18 +78,21 @@ def draw_molecule_explanation(
             float(bond_record["prediction_delta"]), bond_scale
         )
 
-    top_atoms = np.argsort(-np.abs(atom_scores))[: min(5, len(atom_scores))]
+    top_atoms = np.argsort(-np.abs(atom_scores))[: min(max_atom_annotations, len(atom_scores))]
     for atom_index in top_atoms:
         mol.GetAtomWithIdx(int(atom_index)).SetProp(
             "atomNote", f"{atom_scores[atom_index]:+.3f}"
         )
+    scale_legend = (
+        f"local max |delta|: atom={atom_scale:.3f}; bond={bond_scale:.3f}"
+    )
     drawer = rdMolDraw2D.MolDraw2DCairo(width, height)
     options = drawer.drawOptions()
-    options.addAtomIndices = True
+    options.addAtomIndices = show_atom_indices
     options.annotationFontScale = 0.7
     drawer.DrawMolecule(
         mol,
-        legend=legend,
+        legend="",
         highlightAtoms=list(atom_colors),
         highlightBonds=highlight_bonds,
         highlightAtomColors=atom_colors,
@@ -93,8 +100,34 @@ def draw_molecule_explanation(
         highlightAtomRadii=atom_radii,
     )
     drawer.FinishDrawing()
+    lines = [*legend.splitlines(), scale_legend]
+    for font_size in range(32, 11, -1):
+        try:
+            font = ImageFont.truetype("DejaVuSans.ttf", font_size)
+        except OSError:
+            font = ImageFont.load_default(size=font_size)
+        if all(ImageDraw.Draw(Image.new("RGB", (1, 1))).textbbox(
+            (0, 0), line, font=font
+        )[2] <= width - 32 for line in lines):
+            break
+    else:
+        raise ValueError("Molecule legend cannot fit at the requested width")
+    line_height = font_size + 7
+    caption_height = 22 + line_height * len(lines) + 12
+    with Image.open(BytesIO(drawer.GetDrawingText())) as molecule_image:
+        canvas = Image.new("RGB", (width, height + caption_height), "white")
+        canvas.paste(molecule_image.convert("RGB"), (0, 0))
+    painter = ImageDraw.Draw(canvas)
+    painter.line((38, height + 4, width - 38, height + 4), fill=(207, 222, 231), width=2)
+    for index, caption_line in enumerate(lines):
+        bounds = painter.textbbox((0, 0), caption_line, font=font)
+        text_width = bounds[2] - bounds[0]
+        if text_width > width - 32:
+            raise ValueError(f"Molecule legend line is too wide: {caption_line}")
+        painter.text(((width - text_width) / 2, height + 16 + index * line_height),
+                     caption_line, fill=(25, 43, 61), font=font)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_bytes(drawer.GetDrawingText())
+    canvas.save(output_path)
 
 
 def plot_target_gate(gate: np.ndarray, target: str, output_path: Path) -> None:
@@ -104,7 +137,7 @@ def plot_target_gate(gate: np.ndarray, target: str, output_path: Path) -> None:
     ).T
     fig, axis = plt.subplots(figsize=(7.2, 5.2))
     image = axis.imshow(matrix, cmap="viridis", aspect="auto")
-    axis.set_title(f"Effective chemical relative-position response: {target}")
+    axis.set_title(f"Effective chemical relative-position scaling: {target}")
     axis.set_xlabel("Topological shell (hop)")
     axis.set_ylabel("Chemical role")
     axis.set_xticks(range(len(RELATIVE_POSITION_RADII)), RELATIVE_POSITION_RADII)
@@ -134,7 +167,7 @@ def plot_all_target_gates(gates: pd.DataFrame, output_path: Path) -> None:
         axis.axvline(boundary - 0.5, color="white", linewidth=0.8, alpha=0.8)
     axis.set_xlabel("Chemical role and topological shell")
     axis.set_ylabel("Target")
-    axis.set_title("Effective relative-position response across targets")
+    axis.set_title("Effective relative-position scaling across assays")
     fig.colorbar(image, ax=axis, label="gate × projection-column norm")
     fig.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -200,20 +233,20 @@ def plot_faithfulness(records: pd.DataFrame, output_path: Path) -> None:
 
 
 def plot_stability(stability: pd.DataFrame, output_path: Path) -> None:
+    """Quick-look diagnostic, not the publication figure renderer."""
     plt = _pyplot()
-    columns = [
-        "atom_spearman_mean",
-        "atom_top3_overlap_mean",
-        "bond_spearman_mean",
-        "bond_top3_overlap_mean",
-    ]
-    labels = ["Atom Spearman", "Atom Top-3", "Bond Spearman", "Bond Top-3"]
-    values = [stability[column].dropna().to_numpy() for column in columns]
-    fig, axis = plt.subplots(figsize=(8.2, 4.4))
-    axis.boxplot(values, tick_labels=labels, showfliers=False)
-    axis.set_ylim(-0.05, 1.05)
-    axis.set_ylabel("Across-seed agreement")
-    axis.set_title("Intervention-ranking stability across five seeds")
+    fig, axes = plt.subplots(1, 2, figsize=(9.0, 4.4))
+    for axis, columns, label, limits in (
+        (axes[0], ["atom_spearman_mean", "bond_spearman_mean"],
+         "Spearman of absolute-magnitude ranks", (-1.05, 1.05)),
+        (axes[1], ["atom_top3_overlap_mean", "bond_top3_overlap_mean"],
+         "Top-3 overlap", (0.0, 1.05)),
+    ):
+        values = [stability[column].dropna().to_numpy() for column in columns]
+        axis.boxplot(values, tick_labels=["Atom", "Bond"], showfliers=False)
+        axis.set_ylim(*limits)
+        axis.set_ylabel(label)
+        axis.set_title("Five-seed ranking diagnostic")
     fig.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=240)

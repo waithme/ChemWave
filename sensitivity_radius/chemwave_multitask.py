@@ -1,3 +1,5 @@
+# Radius-control fork: a fixed 45D field with configurable active exact shells.
+# Experiment-local file: edits to final_model are not automatically propagated here.
 from __future__ import annotations
 
 import math

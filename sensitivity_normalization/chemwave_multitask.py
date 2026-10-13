@@ -1,3 +1,5 @@
+# Normalization-control fork: raw, shell-mean and square-root shell counts.
+# Experiment-local file: edits to final_model are not automatically propagated here.
 from __future__ import annotations
 
 import math

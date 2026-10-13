@@ -172,6 +172,10 @@ def test_metrics(model, graphs, device: torch.device) -> dict:
     }
 
 
+# This is a production evaluation helper, not a pytest test case.
+test_metrics.__test__ = False
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(

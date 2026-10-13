@@ -1,3 +1,5 @@
+# Archived relative-field development snapshot, not a publication Full entry point.
+# Experiment-local file: edits to final_model are not automatically propagated here.
 from __future__ import annotations
 
 import torch

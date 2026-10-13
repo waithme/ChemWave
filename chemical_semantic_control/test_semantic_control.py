@@ -5,7 +5,6 @@ from rdkit import Chem
 from torch_geometric.data import Batch
 
 from chemwave_features import (
-    chemical_relative_position_field,
     chemical_roles,
     element_channels,
     fixed_random_roles,

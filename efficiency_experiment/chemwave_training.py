@@ -1,3 +1,5 @@
+# Efficiency-measurement snapshot of the fixed publication architecture.
+# Experiment-local file: edits to final_model are not automatically propagated here.
 from __future__ import annotations
 
 import copy
@@ -100,7 +102,7 @@ def prepare_development_data(
             target_totals[current_target] += 1
 
     # One global canonical-identity assignment, while retaining exactly 10% of
-    # each target's filtered rows as audited in Supporting Information Table S4.
+    # each assay's filtered rows as audited in Supporting Information Table S1.
     validation_quota = np.ceil(target_totals * 0.10).astype(np.int64)
     validation_counts = np.zeros_like(validation_quota)
     shuffled_identities = sorted(identity_counts)

@@ -1,3 +1,5 @@
+# Shell-control fork: exact versus cumulative topological neighborhoods.
+# Experiment-local file: edits to final_model are not automatically propagated here.
 from __future__ import annotations
 
 import numpy as np

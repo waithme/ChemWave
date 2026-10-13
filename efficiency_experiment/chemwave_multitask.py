@@ -1,3 +1,5 @@
+# Exact model-code snapshot of final_model at this revision; no architecture difference.
+# Experiment-local file: edits to final_model are not automatically propagated here.
 from __future__ import annotations
 
 import math

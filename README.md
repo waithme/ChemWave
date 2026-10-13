@@ -22,6 +22,8 @@ ChemWave is a molecular graph-learning model for assay-specific activity predict
 
 Generated result tables and JSON summaries are deliberately not committed. In particular, the E2 control's reported outputs are not included here; `e2_assay_film_gine_control/` contains its code and tests only. Model checkpoints and trained weights are also excluded.
 
+Experiment directories retain local module snapshots so that each launcher can run from its own directory. `final_model/` is the canonical Full implementation. File headers identify snapshots with unchanged feature rules and deliberate architecture, semantic-control, sampling, or representation-sensitivity forks. Changes do not automatically propagate to these copies. The feature and model files in `experiment4/` must remain byte-identical to their canonical counterparts for checkpoint source-hash verification, including comments; their canonical headers are therefore retained verbatim. This layout does not imply additional final models.
+
 ## Environment and dependencies
 
 Use Python 3.10.20 and the `requirements.txt` in the experiment directory you intend to run. The core versions reported in the Supporting Information are NumPy 1.26.4, pandas 2.3.3, RDKit 2023.09.6, PyTorch 2.5.1+cu124, and PyTorch Geometric 2.7.0; these core versions are pinned in the checked-in requirement files. The intervention plotting requirement is pinned to Matplotlib 3.10.9 for repeatable rendering; its historical publication-run version was not recorded. The requirement files are direct-dependency pins, not a full transitive environment lock. GPU users need a PyTorch wheel compatible with their driver; the following commands reproduce the reported CUDA 12.4 wheel selection on Linux:
@@ -186,24 +188,65 @@ cd ..
 
 This study-specific utility expects `atom_scores.csv`, `bond_scores.csv`, and
 `seed_stability.csv` under `experiment4/interpretability_outputs/tables/`, with
-the 1,476 sampled molecules, 30 assays, and seeds 0–4. It validates component
-indices and the historical signed diagnostics before updating the main
-Spearman columns, retains the signed diagnostics and unchanged Top-3 columns,
-and writes a local audit summary. It does not change saved predictions or
-atom/bond intervention effects. These generated tables and the audit summary
-remain excluded from Git; only the script and regression test are distributed.
+the 1,476 sampled molecules, 30 assays, and seeds 0–4. A different input location
+can be supplied with `--tables-dir /path/to/tables`. It validates component
+indices and signed diagnostics, then writes `seed_stability_magnitude.csv`
+and `seed_stability_magnitude_output_audit.json`, recording input/output hashes.
+The input CSVs and historical audit files remain intact. Identical output files
+can be reused; different existing outputs are not overwritten. Signed
+diagnostics and the saved Top-3 columns are retained. No model inference is
+performed. The required generated tables are not distributed in this repository;
+the command requires locally available saved outputs and cannot by itself verify
+the publication numbers from a fresh code-only checkout.
+
+### Figure diagnostics and gallery rendering
+
+`experiment4/interpretability_visuals.py` renders quick-look diagnostics, not the
+publication statistical-figure layouts. Its stability diagnostic separates
+Spearman correlations (including negative values) from Top-3 overlaps. The
+manuscript's figures and figure-specific assembly scripts are outside this
+code/data repository.
+
+`experiment4/regenerate_case_gallery_from_saved_scores.py` preserves the supplied
+case selection and redraws its molecules from saved five-seed component effects,
+including the mean-prediction label and separate local atom/bond maxima. It needs
+the original gallery-selection TeX and saved molecule/atom/bond score CSVs, which
+are not distributed here. Supply these local inputs explicitly:
+
+```bash
+cd experiment4
+python regenerate_case_gallery_from_saved_scores.py \
+  --gallery-tex /path/to/molecule_gallery.tex \
+  --tables-dir /path/to/saved/tables \
+  --output-dir /path/to/new/gallery
+cd ..
+```
+
+The default depiction size is 1200 by 800 pixels before adding the legend. This
+changes only rendering; it does not run the model, alter saved scores, select
+new cases, or make a chemical-causality claim.
 
 ## Tests
 
-The repository includes focused unit tests for model components and controls. Install the experiment's requirements, then run tests from that experiment directory, for example:
+The repository includes focused unit tests for model components and controls.
+Install the experiment's requirements and `requirements-dev.txt`, then run tests
+from that experiment directory, for example:
 
 ```bash
+python -m pip install -r requirements-dev.txt
 cd final_model
 python -m pytest -q tests
+python -m unittest discover -s tests -t .
 
 cd ../e2_assay_film_gine_control
 python -m pytest -q tests
 ```
+
+Run each experiment suite in a separate process from its own directory; the local
+module imports intentionally resolve to that experiment's snapshot. The test
+packages support `unittest` discovery with `-t .`. `pytest.ini` limits filename
+collection to `test_*.py`, and production `test_metrics()` helpers are explicitly
+excluded from pytest collection without changing their evaluation behavior.
 
 ## Data and reproducibility notes
 

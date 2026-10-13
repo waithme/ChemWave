@@ -1,3 +1,5 @@
+# Semantic-control fork: element-shell and index-randomized role-location variants.
+# Experiment-local file: edits to final_model are not automatically propagated here.
 from __future__ import annotations
 
 import math

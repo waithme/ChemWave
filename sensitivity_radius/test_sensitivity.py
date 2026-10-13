@@ -1,6 +1,5 @@
 import unittest
 
-import torch
 from rdkit import Chem
 
 from chemwave_features import chemical_relative_position_field

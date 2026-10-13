@@ -1,3 +1,5 @@
+# Canonical publication feature rules.
+# Keep the experiment4 copy byte-identical for checkpoint source validation.
 from __future__ import annotations
 
 import numpy as np

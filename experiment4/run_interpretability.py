@@ -608,10 +608,10 @@ def main() -> None:
                     / target
                     / f"row_{record['row_id']}_{label}.png",
                     legend=(
-                        f"{target} | {label} | cliff={record['cliff']} | "
-                        f"y={record['y']:.3f} pred={record['mean_prediction']:.3f}\n"
-                        "atoms: relative intervention; bonds: bond-difference intervention; "
-                        "red raises / blue lowers"
+                        f"{target} | sampled {label.replace('_', ' ')} | cliff={record['cliff']}\n"
+                        f"y={record['y']:.3f}; mean pred (5 seeds)={record['mean_prediction']:.3f}\n"
+                        "signed full-minus-masked; red raises / blue lowers\n"
+                        "atom: relative field; bond: bond-difference"
                     ),
                 )
 

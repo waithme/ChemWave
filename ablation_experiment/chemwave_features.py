@@ -1,3 +1,5 @@
+# Exact feature-code snapshot of final_model at this revision; no feature-rule difference.
+# Experiment-local file: edits to final_model are not automatically propagated here.
 from __future__ import annotations
 
 import numpy as np

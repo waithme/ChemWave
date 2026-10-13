@@ -1,13 +1,15 @@
 """Correct seed-stability ranks from saved component interventions, without inference.
 
-The existing seed_stability.csv was computed from signed deltas.  This script
-checks those historical values against atom_scores.csv and bond_scores.csv,
-then makes the main Spearman columns rank absolute intervention magnitudes.
-The signed diagnostic is retained under explicitly named columns.
+Historical seed_stability.csv files may store signed-rank correlations in the
+main columns; corrected files retain them in separately named diagnostic
+columns. This script validates the signed diagnostics against the component
+tables and writes absolute-magnitude rankings to a separate output file.
+The input tables and their original audit files are never overwritten.
 """
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 from collections import defaultdict
@@ -68,18 +70,31 @@ def checked_arrays(grouped, key, channel):
     return [values for _, values in pairs]
 
 
-def main() -> None:
+def _write_new_or_identical(path: Path, contents: bytes) -> None:
+    if path.exists():
+        if path.read_bytes() != contents:
+            raise RuntimeError(f"Refusing to overwrite a different existing output: {path}")
+        return
+    with path.open("xb") as stream:
+        stream.write(contents)
+
+
+def recompute_saved_stability(
+    tables: Path, *, expected_molecules: int = 1476, expected_assays: int = 30
+) -> dict:
     paths = {
-        "atom": TABLES / "atom_scores.csv",
-        "bond": TABLES / "bond_scores.csv",
-        "stability": TABLES / "seed_stability.csv",
+        "atom": tables / "atom_scores.csv",
+        "bond": tables / "bond_scores.csv",
+        "stability": tables / "seed_stability.csv",
     }
     source_hashes = {name: file_sha256(path) for name, path in paths.items()}
     atom = component_arrays(paths["atom"], "atom_index", "relative_prediction_delta")
     bond = component_arrays(paths["bond"], "bond_index", "gradient_prediction_delta")
     frame = pd.read_csv(paths["stability"])
-    if len(frame) != 1476 or frame.target.nunique() != 30:
-        raise ValueError("Expected 1,476 sampled molecules across 30 assays")
+    if len(frame) != expected_molecules or frame.target.nunique() != expected_assays:
+        raise ValueError(
+            f"Expected {expected_molecules} sampled molecules across {expected_assays} assays"
+        )
     if frame.duplicated(["target", "row_id"]).any():
         raise ValueError("Duplicate molecule in seed_stability.csv")
     keys = list(zip(frame.target, frame.row_id.astype(int)))
@@ -104,11 +119,14 @@ def main() -> None:
 
     for column, values in computed.items():
         frame[column] = values
-    frame.to_csv(paths["stability"], index=False)
+    output = tables / "seed_stability_magnitude.csv"
+    _write_new_or_identical(output, frame.to_csv(index=False).encode("utf-8"))
     summary = {
         "definition": "Per-molecule mean over ten seed pairs of Spearman ranks on absolute single-component prediction deltas",
-        "source_sha256_before_update": source_hashes,
-        "result_sha256": file_sha256(paths["stability"]),
+        "source_sha256": source_hashes,
+        "input_table": paths["stability"].name,
+        "output_table": output.name,
+        "result_sha256": file_sha256(output),
         "molecules": len(frame),
         "assays": frame.target.nunique(),
         "seeds": list(SEEDS),
@@ -116,9 +134,21 @@ def main() -> None:
             column: float(np.nanmean(frame[column])) for column in computed
         },
         "top3_columns_unchanged": ["atom_top3_overlap_mean", "bond_top3_overlap_mean"],
+        "source_tables_unchanged": True,
+        "new_inference": False,
     }
-    audit = TABLES / "seed_stability_magnitude_audit.json"
-    audit.write_text(json.dumps(summary, indent=2) + "\n")
+    if {name: file_sha256(path) for name, path in paths.items()} != source_hashes:
+        raise RuntimeError("An input table changed during re-aggregation")
+    audit = tables / "seed_stability_magnitude_output_audit.json"
+    _write_new_or_identical(audit, (json.dumps(summary, indent=2) + "\n").encode("utf-8"))
+    return summary
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--tables-dir", type=Path, default=TABLES)
+    args = parser.parse_args()
+    summary = recompute_saved_stability(args.tables_dir)
     print(json.dumps(summary, indent=2))
 
 

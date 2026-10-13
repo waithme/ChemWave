@@ -1,3 +1,5 @@
+# Architecture-ablation fork: variant switches and compatible historical aliases.
+# Experiment-local file: edits to final_model are not automatically propagated here.
 from __future__ import annotations
 
 import math
