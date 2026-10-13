@@ -113,6 +113,15 @@ def concentration(values: np.ndarray, k: int = 3) -> float:
 
 
 def spearman(left: np.ndarray, right: np.ndarray) -> float:
+    """Agreement of absolute intervention-score rankings across seeds."""
+    left_rank = pd.Series(np.abs(left)).rank(method="average")
+    right_rank = pd.Series(np.abs(right)).rank(method="average")
+    value = left_rank.corr(right_rank)
+    return float(value) if pd.notna(value) else np.nan
+
+
+def signed_spearman(left: np.ndarray, right: np.ndarray) -> float:
+    """Archived directional ranking diagnostic, distinct from score ranking."""
     left_rank = pd.Series(left).rank(method="average")
     right_rank = pd.Series(right).rank(method="average")
     value = left_rank.corr(right_rank)
@@ -549,8 +558,10 @@ def main() -> None:
             {
                 **row_store[key],
                 "atom_spearman_mean": mean_pairwise(atom_values, spearman),
+                "atom_signed_spearman_mean": mean_pairwise(atom_values, signed_spearman),
                 "atom_top3_overlap_mean": mean_pairwise(atom_values, top_k_overlap),
                 "bond_spearman_mean": mean_pairwise(bond_values, spearman),
+                "bond_signed_spearman_mean": mean_pairwise(bond_values, signed_spearman),
                 "bond_top3_overlap_mean": mean_pairwise(bond_values, top_k_overlap),
             }
         )

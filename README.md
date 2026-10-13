@@ -162,6 +162,37 @@ Use each launcher's `--help` for additional options. Official test metrics are f
 
 Interpretability runs verify the development-data fingerprint and every requested checkpoint before generating explanations, then record checkpoint and input hashes in their manifest. Historical checkpoints without embedded protocol metadata require a separate read-only audit manifest via `--legacy-audit-manifest`; that manifest documents unresolved provenance limits rather than treating old weights as newly certified. Use `--verify-only` to check sources without producing explanations.
 
+### Cross-seed intervention ranking
+
+The Figure 4 ranking statistics use the absolute intervention magnitudes
+`abs(full_prediction - masked_prediction)`, for both Spearman correlation and
+Top-3 overlap. Positive and negative prediction changes with the same magnitude
+therefore receive the same rank. Per molecule, the analysis averages the ten
+pairs of five model seeds. Signed Spearman correlations are retained only as
+separate directional diagnostics in `atom_signed_spearman_mean` and
+`bond_signed_spearman_mean`; they are not the main ranking-agreement statistic.
+
+Earlier repository revisions ranked signed effects in the main Spearman
+columns. New intervention runs use the corrected absolute-magnitude definition.
+If you already generated the publication-scale saved intervention tables,
+recompute the ranking summaries without loading checkpoints or rerunning the
+model:
+
+```bash
+cd experiment4
+python recompute_magnitude_seed_stability.py
+cd ..
+```
+
+This study-specific utility expects `atom_scores.csv`, `bond_scores.csv`, and
+`seed_stability.csv` under `experiment4/interpretability_outputs/tables/`, with
+the 1,476 sampled molecules, 30 assays, and seeds 0–4. It validates component
+indices and the historical signed diagnostics before updating the main
+Spearman columns, retains the signed diagnostics and unchanged Top-3 columns,
+and writes a local audit summary. It does not change saved predictions or
+atom/bond intervention effects. These generated tables and the audit summary
+remain excluded from Git; only the script and regression test are distributed.
+
 ## Tests
 
 The repository includes focused unit tests for model components and controls. Install the experiment's requirements, then run tests from that experiment directory, for example:

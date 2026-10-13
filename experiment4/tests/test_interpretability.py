@@ -13,12 +13,19 @@ from chemwave_explain import (
 )
 from chemwave_features import molecule_to_graph35
 from chemwave_multitask import TargetConditionedChemWave
-from run_interpretability import load_model
+from run_interpretability import load_model, signed_spearman, spearman, top_k_overlap
 from chemwave_provenance import VARIANT, canonical_sha256, protocol, sha256_file
 from interpretability_visuals import draw_molecule_explanation
 
 
 class InterpretabilityTests(unittest.TestCase):
+    def test_seed_stability_ranks_absolute_intervention_magnitudes(self):
+        first = np.array([-0.8, 0.2, 0.1])
+        second = np.array([0.8, 0.2, 0.1])
+        self.assertAlmostEqual(spearman(first, second), 1.0)
+        self.assertLess(signed_spearman(first, second), 1.0)
+        self.assertAlmostEqual(top_k_overlap(first, second, k=2), 1.0)
+
     @classmethod
     def setUpClass(cls):
         cls.graph = molecule_to_graph35(
