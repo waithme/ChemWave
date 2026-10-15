@@ -1,4 +1,4 @@
-# Keep the repository limited to source code, input data, and the root README.
+# Source code, input data, and explicitly curated intervention audit data.
 # Project-level experiment notes are local-only documentation.
 **/README.md
 !/README.md
@@ -57,3 +57,9 @@
 **/.DS_Store
 **/.env
 **/.env.*
+
+# Author-approved compact audit release; do not unignore general run outputs.
+!/publication_data/interventions/README.md
+!/publication_data/interventions/manifest.json
+!/publication_data/interventions/figure5_summary.json
+!/publication_data/interventions/reaggregation_audit.json

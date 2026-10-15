@@ -1,0 +1,69 @@
+{
+  "definition": "Per-molecule mean over ten seed pairs of Spearman ranks on absolute single-component prediction deltas",
+  "source_sha256": {
+    "atom": "a332fe43d4fe7e80ab7972c1532a4c977e5df203830c356f5ceeaa4d93f1c427",
+    "bond": "c67536c7187e4c2edb2bb779f6b9abb340f3755bc7521727c6e06089066b16e4",
+    "stability": "974b23b16dd08dcf0a78beb2a1621d479890c4a2fa936547bdd1808ccbd6c66d"
+  },
+  "input_table": "seed_stability.csv",
+  "output_table": "seed_stability_magnitude.csv",
+  "result_sha256": "974b23b16dd08dcf0a78beb2a1621d479890c4a2fa936547bdd1808ccbd6c66d",
+  "molecules": 1476,
+  "assays": 30,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "mean_over_molecules": {
+    "atom_spearman_mean": 0.25682412494772017,
+    "atom_signed_spearman_mean": 0.3273430299366225,
+    "bond_spearman_mean": 0.20960679138189214,
+    "bond_signed_spearman_mean": 0.09428405303016284
+  },
+  "top3_columns_unchanged": [
+    "atom_top3_overlap_mean",
+    "bond_top3_overlap_mean"
+  ],
+  "source_tables_unchanged": true,
+  "new_inference": false,
+  "release_verification_environment": {
+    "python": "3.14",
+    "numpy": "2.4.0",
+    "rdkit": "2026.03.1",
+    "torch": "2.10.0",
+    "torch_geometric": "2.7.0",
+    "device": "CPU",
+    "historical_training_environment_rerun": false
+  },
+  "case_gallery_verification": {
+    "rendering_rdkit_version": "2026.03.1",
+    "source_sha256": {
+      "molecule": "8ef4204c2bee87df06eaa68a189debbade8f021a835783e32fe01208fd27d65b",
+      "atom": "a332fe43d4fe7e80ab7972c1532a4c977e5df203830c356f5ceeaa4d93f1c427",
+      "bond": "c67536c7187e4c2edb2bb779f6b9abb340f3755bc7521727c6e06089066b16e4"
+    },
+    "gallery_tex_sha256": "d5a3013797e4b282ef5c629aebe4435517ea089f6497f487430de9a8743ff2c5",
+    "molecule_canvas_pixels": [
+      1200,
+      800
+    ],
+    "target_filter": null,
+    "rendered_panels": 120,
+    "assays": 30,
+    "effect_definition": "Five-seed mean of signed full-minus-single-component-masked predictions",
+    "color_scales": "Separate per-molecule maxima for atom and bond effects, printed on each panel",
+    "example": {
+      "CHEMBL1862_Ki/row_452_lowest_error.png": {
+        "mean_prediction": 8.51028823852539,
+        "max_abs_atom_effect": 0.48262796401977537,
+        "max_abs_bond_effect": 0.02556171417236326
+      }
+    }
+  },
+  "model_inference_rerun": false,
+  "training_rerun": false,
+  "scope": "Re-aggregation and case-color rendering from the compact exports, not inference/checkpoint certification or exact publication-figure typesetting."
+}

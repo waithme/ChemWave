@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "release": "ChemWave saved-intervention numeric audit",
+  "audit_analysis_code_commit": "aa20698704d02f15df1388aeb7a32ad95ac0ad74",
+  "scope": {
+    "molecules": 1476,
+    "assays": 30,
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sample_is_complete_for_this_analysis": true,
+    "benchmark_test_population_is_not_fully_included": true,
+    "model_inference_rerun": false,
+    "training_rerun": false,
+    "weights_distributed": false
+  },
+  "export": {
+    "numeric_precision": "Original retained CSV strings; no rounding or numeric reserialization.",
+    "reductions": "Remove repeated metadata and unrelated diagnostic columns, not rows or seeds.",
+    "compression": "gzip level 9, mtime=0",
+    "atom_bond_metadata_join": [
+      "target",
+      "row_id",
+      "seed"
+    ]
+  },
+  "sampling": {
+    "max_cliff_per_assay": 25,
+    "max_noncliff_per_assay": 25,
+    "sampling_random_state": 0,
+    "random_intervention_repeats_in_original_run": 10
+  },
+  "files": {
+    "molecule_scores.csv.gz": {
+      "rows": 7380,
+      "columns": [
+        "target",
+        "row_id",
+        "smiles",
+        "y",
+        "cliff",
+        "seed",
+        "prediction"
+      ],
+      "source_file": "molecule_scores.csv",
+      "original_source_sha256": "f08b084b133e713163b2178addcece7d5f19f2e5475234aed771afae428cc72c",
+      "original_bytes": 2124779,
+      "uncompressed_export_sha256": "8ef4204c2bee87df06eaa68a189debbade8f021a835783e32fe01208fd27d65b",
+      "compressed_sha256": "49537914cb7d78e53b0a06b7975e5e9486628f0853aca1e67cbe56bf032ab4eb",
+      "compressed_bytes": 136354
+    },
+    "atom_scores.csv.gz": {
+      "rows": 227830,
+      "columns": [
+        "target",
+        "row_id",
+        "seed",
+        "atom_index",
+        "relative_prediction_delta"
+      ],
+      "source_file": "atom_scores.csv",
+      "original_source_sha256": "256dba4eb0c57e77bd6609636c5910057bcf526614b7a2bd55898c6e0cded814",
+      "original_bytes": 38546295,
+      "uncompressed_export_sha256": "a332fe43d4fe7e80ab7972c1532a4c977e5df203830c356f5ceeaa4d93f1c427",
+      "compressed_sha256": "aebdcd6db0316d9ac47942d99515719dc1252a7dd835ac4a5a1382cfceadaf18",
+      "compressed_bytes": 2443345
+    },
+    "bond_scores.csv.gz": {
+      "rows": 250695,
+      "columns": [
+        "target",
+        "row_id",
+        "seed",
+        "bond_index",
+        "atom_i",
+        "atom_j",
+        "gradient_prediction_delta"
+      ],
+      "source_file": "bond_scores.csv",
+      "original_source_sha256": "d1694b52e66e2b814505c420556ad59fae8aa581165a34d874da8b4bd87fcd1d",
+      "original_bytes": 45461585,
+      "uncompressed_export_sha256": "c67536c7187e4c2edb2bb779f6b9abb340f3755bc7521727c6e06089066b16e4",
+      "compressed_sha256": "11c59e7cf33608214f0d0c1fbfbb69ff30321b46ad82c1044a5c442ca4ec39b2",
+      "compressed_bytes": 2827708
+    },
+    "seed_stability.csv.gz": {
+      "rows": 1476,
+      "columns": [
+        "target",
+        "row_id",
+        "smiles",
+        "y",
+        "cliff",
+        "atom_spearman_mean",
+        "atom_top3_overlap_mean",
+        "bond_spearman_mean",
+        "bond_top3_overlap_mean",
+        "atom_signed_spearman_mean",
+        "bond_signed_spearman_mean"
+      ],
+      "source_file": "seed_stability.csv",
+      "original_source_sha256": "974b23b16dd08dcf0a78beb2a1621d479890c4a2fa936547bdd1808ccbd6c66d",
+      "original_bytes": 302107,
+      "uncompressed_export_sha256": "974b23b16dd08dcf0a78beb2a1621d479890c4a2fa936547bdd1808ccbd6c66d",
+      "compressed_sha256": "6978d0b6e8adf1d66b570f0a4889abfc1934fbf7ef8f0d2ade95f071f9cd8a89",
+      "compressed_bytes": 101087
+    }
+  },
+  "analysis_code_sha256": {
+    "experiment4/run_interpretability.py": "f095836d3ab8d0acb8c4ae28bfeb5bc956c2cb068aa88c59e97724854236df51",
+    "experiment4/recompute_magnitude_seed_stability.py": "59f43b70932e853b652dacba2daff861e3b3f2e9e7de864d9ea990eed88055ec",
+    "experiment4/regenerate_case_gallery_from_saved_scores.py": "a47ca18366842c76a32af6b0281da3e70547f90925996c4fa07ba79a61f7104b",
+    "experiment4/interpretability_visuals.py": "9142468773d59e1613bd97a206286ac73ac60f56f48f3329d8450cf71746eab6"
+  },
+  "provenance_limits": [
+    "The archived intervention run manifest does not embed per-output checkpoint hashes.",
+    "Original-source hashes and compact-file hashes establish this export mapping, not independent certification of historical training.",
+    "This release does not enable model inference from distributed weights or byte-identical publication layouts."
+  ],
+  "case_selection": {
+    "cases": 120,
+    "assays": 30,
+    "main_figure_5_cases": 1,
+    "si_gallery_images": 119,
+    "input_row_hash_method": "SHA-256 of UTF-8 json.dumps(csv.DictReader row, sort_keys=True, separators=(comma,colon), ensure_ascii=False); all values remain CSV strings.",
+    "case_selection_sha256": "f8aee81696413754849d4d71d5cccd3437612e70f82e700cbd66779f4a7c398a"
+  },
+  "figure5_summary_sha256": "7bd40b43d3ccc326f5cbff60146ab7dbe5a0e1af6a79a5427c1e7631eeb8a05d",
+  "compressed_table_bytes": 5508494,
+  "source_files_unchanged": true
+}

@@ -1,6 +1,6 @@
 # ChemWave: code and data
 
-ChemWave is a molecular graph-learning model for assay-specific activity prediction, with an atom-centred role–distance representation. This repository is intentionally limited to source code, input datasets, dependency specifications, and this project README. It does not distribute manuscript files, figures, experiment outputs, trained weights, logs, or review/archive snapshots.
+ChemWave is a molecular graph-learning model for assay-specific activity prediction, with an atom-centred role–distance representation. This repository contains source code, input datasets, dependency specifications, and a compact saved-intervention audit dataset. It does not distribute manuscript files, figures, general experiment outputs, trained weights, logs, or review/archive snapshots.
 
 ## Repository contents
 
@@ -10,6 +10,7 @@ ChemWave is a molecular graph-learning model for assay-specific activity predict
 | `ablation_experiment/` | Architecture ablation implementation and input assay data. |
 | `experiment3/` | Training-strategy comparisons and tests. |
 | `experiment4/` | Prediction-intervention / interpretability analysis code. |
+| `publication_data/interventions/` | Losslessly compressed saved predictions and atom/bond interventions for all 1,476 sampled molecules and five seeds; Figure 4 statistics, Figure 5 numeric checks, and the 120-case gallery selection. See its README for extraction and verification commands. |
 | `matched_multitarget_baselines/` | Matched GINE and AttentiveFP baseline implementations. |
 | `e2_assay_film_gine_control/` | Matched assay-FiLM GINE control implementation and tests. |
 | `chemical_semantic_control/` | Chemical-role versus element-shell control code. |
@@ -20,7 +21,7 @@ ChemWave is a molecular graph-learning model for assay-specific activity predict
 | `*/data/` | Input assay data required by the corresponding scripts. The legacy copies are retained because the scripts use directory-relative data paths. |
 | `*/requirements.txt` | Python package requirements for the corresponding experiment. |
 
-Generated result tables and JSON summaries are deliberately not committed. In particular, the E2 control's reported outputs are not included here; `e2_assay_film_gine_control/` contains its code and tests only. Model checkpoints and trained weights are also excluded.
+The explicit exception to the generated-output exclusion is `publication_data/interventions/`: it contains selected columns from the saved intervention run, not a selected subset of molecules. All 1,476 sampled molecules, five seeds, and retained numeric strings are preserved. Other generated benchmark tables and summaries remain excluded. In particular, the E2 control's reported outputs are not included here; `e2_assay_film_gine_control/` contains its code and tests only. Model checkpoints and trained weights are also excluded.
 
 Experiment directories retain local module snapshots so that each launcher can run from its own directory. `final_model/` is the canonical Full implementation. File headers identify snapshots with unchanged feature rules and deliberate architecture, semantic-control, sampling, or representation-sensitivity forks. Changes do not automatically propagate to these copies. The feature and model files in `experiment4/` must remain byte-identical to their canonical counterparts for checkpoint source-hash verification, including comments; their canonical headers are therefore retained verbatim. This layout does not imply additional final models.
 
@@ -195,9 +196,11 @@ and `seed_stability_magnitude_output_audit.json`, recording input/output hashes.
 The input CSVs and historical audit files remain intact. Identical output files
 can be reused; different existing outputs are not overwritten. Signed
 diagnostics and the saved Top-3 columns are retained. No model inference is
-performed. The required generated tables are not distributed in this repository;
-the command requires locally available saved outputs and cannot by itself verify
-the publication numbers from a fresh code-only checkout.
+performed. Compact versions of the required saved tables are now distributed in
+`publication_data/interventions/`. Follow that directory's README to extract them
+to a temporary directory, then pass that directory via `--tables-dir` to verify
+the published absolute-magnitude means without model inference. The complete
+original run directory and trained checkpoints remain excluded.
 
 ### Figure diagnostics and gallery rendering
 
@@ -209,9 +212,11 @@ code/data repository.
 
 `experiment4/regenerate_case_gallery_from_saved_scores.py` preserves the supplied
 case selection and redraws its molecules from saved five-seed component effects,
-including the mean-prediction label and separate local atom/bond maxima. It needs
-the original gallery-selection TeX and saved molecule/atom/bond score CSVs, which
-are not distributed here. Supply these local inputs explicitly:
+including the mean-prediction label and separate local atom/bond maxima. The
+compact saved tables and a machine-readable 120-case selection are now in
+`publication_data/interventions/`; its README shows how to generate the temporary
+selection routing file accepted by this existing renderer. This does not require
+the manuscript TeX. For other locally available inputs, supply their paths:
 
 ```bash
 cd experiment4
@@ -250,12 +255,12 @@ excluded from pytest collection without changing their evaluation behavior.
 
 ## Data and reproducibility notes
 
-The checked-in `data/` directories contain input assay records used by the experiments; derived benchmark summaries and per-seed predictions are excluded. The same assay files are present in a few legacy locations because older scripts expect those paths. Treat them as copies of the same inputs, not independent datasets.
+The checked-in experiment `data/` directories contain input assay records. The separate `publication_data/interventions/` release contains saved predictions and component effects for the sampled intervention analysis only; derived external-benchmark summaries remain excluded. The same assay files are present in a few legacy locations because older scripts expect those paths. Treat them as copies of the same inputs, not independent datasets.
 
-For reproducibility, record the experiment directory, command-line arguments, Python/package versions, device, and random seeds when running a job. Checkpoint selection uses only the designated development validation data, with official-test evaluation performed afterward. The project does not bundle trained checkpoints or precomputed results.
+For reproducibility, record the experiment directory, command-line arguments, Python/package versions, device, and random seeds when running a job. Checkpoint selection uses only the designated development validation data, with official-test evaluation performed afterward. The project does not bundle trained checkpoints. The compact intervention release supports re-aggregation and numeric case audits, not independent regeneration of model outputs from released weights.
 
 The `v1/` and `v1_relative_position/` directories are archival code, not runnable publication entry points in this public checkout. Their historical `CHEMWAVE_MODEL_LOCK.json` files, and `v1/CHEMWAVE_EVALUATION_REGISTRY.json`, are not distributed. To reproduce the Base (V1) architecture under the final five-seed ablation protocol, use `ablation_experiment/run_ablation.py --variant a0_v1`; do not treat the archived V1 launchers as a second final model.
 
 ## Scope of this GitHub copy
 
-Included: computational source code, input data directories, experiment-specific dependency files, and this README. Excluded: manuscript and Supporting Information source/PDFs, figures, generated results, trained model weights, logs/caches, dated review packages, and retired/archive files. The excluded material remains in the local project folder and is not removed by this repository setup.
+Included: computational source code, input data directories, experiment-specific dependency files, this README, and the explicitly curated saved-intervention audit dataset. Excluded: manuscript and Supporting Information source/PDFs, figures, other generated results, trained model weights, logs/caches, dated review packages, and retired/archive files. The excluded material remains in the local project folder and is not removed by this repository setup.

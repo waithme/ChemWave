@@ -1,0 +1,93 @@
+{
+  "target": "CHEMBL287_Ki",
+  "row_id": 888,
+  "smiles": "Clc1ccc(CCN2CCOCC2)cc1Cl",
+  "effect_definition": "full minus single-component-masked prediction",
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "observed_value": 8.200659450546418,
+  "badge_atom_indices": {
+    "A": 10,
+    "B": 14,
+    "C": 15
+  },
+  "highlighted_bond_index": 14,
+  "highlighted_bond_endpoints": [
+    14,
+    15
+  ],
+  "per_seed": [
+    {
+      "seed": 0,
+      "prediction": 7.952728271484375,
+      "atom_effects": {
+        "A": -0.40485095977783203,
+        "B": 0.34548473358154297,
+        "C": 0.34102869033813477
+      },
+      "bond_effect": 0.015233516693115234
+    },
+    {
+      "seed": 1,
+      "prediction": 7.72976016998291,
+      "atom_effects": {
+        "A": -0.527435302734375,
+        "B": 0.10327768325805664,
+        "C": 0.3176698684692383
+      },
+      "bond_effect": 0.13972854614257812
+    },
+    {
+      "seed": 2,
+      "prediction": 7.868180751800537,
+      "atom_effects": {
+        "A": -0.33214521408081055,
+        "B": -0.13716936111450195,
+        "C": 0.15450525283813477
+      },
+      "bond_effect": 0.052922725677490234
+    },
+    {
+      "seed": 3,
+      "prediction": 7.967585563659668,
+      "atom_effects": {
+        "A": -0.27851009368896484,
+        "B": 0.7073616981506348,
+        "C": 0.5139083862304688
+      },
+      "bond_effect": 0.04570341110229492
+    },
+    {
+      "seed": 4,
+      "prediction": 8.391646385192871,
+      "atom_effects": {
+        "A": -0.3902454376220703,
+        "B": 0.5307550430297852,
+        "C": 0.2006072998046875
+      },
+      "bond_effect": -0.0021181106567382812
+    }
+  ],
+  "mean_prediction": 7.981980228424073,
+  "mean_atom_effects": {
+    "A": -0.38663740158081056,
+    "B": 0.3099419593811035,
+    "C": 0.3055438995361328
+  },
+  "mean_bond_effect": 0.050294017791748045,
+  "printed_annotations": {
+    "observed_value": "8.201",
+    "mean_prediction": "7.982",
+    "atom_effects": {
+      "A": "-0.387",
+      "B": "+0.310",
+      "C": "+0.306"
+    },
+    "bond_effect": "+0.050"
+  }
+}
